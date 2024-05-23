@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Friends</title>
+    <link href="./global.css" rel="stylesheet"></link>
+</head>
+<body style='justify-content: start;'>
+    <header>
+        <h1>Contact List</h1>
+    </header>
+    
+    <div style="font-size: 24px;">
+        <a href="/friends.html">friends</a>
+        /
+        <a href="/coords.html">start room</a>
+    </div>
+
+    <div class="container">
+        <h1>Pending requests</h1>
+        <ul id="pending-friends" class="contact-list">
+            <!-- Add friends to send request-->
+        </ul>
+    </div>
+    <div class="container">
+        <h1>Friends List</h1>
+        <ul id="friends" class="contact-list">
+            <!-- Add more contacts as needed -->
+        </ul>
+    </div>
+    <div class="container">
+        <form id="friendrequest">
+        <h1>Send Friend Request</h1>
+        <ul class="contact-list">
+            <li class="contact">
+                    <input type="text" placeholder="phonenumber to request" id="friendphonenumber"></input>
+                    <button type="submit" class="button accept-button">
+                        send
+                    </button>
+            </li>
+        </ul>
+        </form>
+    </div>
+    <script src="./friends.js"></script>
+</body>
+</html>

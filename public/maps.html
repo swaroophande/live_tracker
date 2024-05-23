@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <title>Reverse Geocoding with Embedded Map</title>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.7.1/dist/leaflet.css" />
+    <style>
+        #map {
+            height: 85vh;
+            width: 100%;
+        }
+        #terminate-room {
+        }
+    </style>
+</head>
+
+<body>
+    <!--
+    <input type="text" id="latitudeInput" placeholder="Enter latitude">
+    <input type="text" id="longitudeInput" placeholder="Enter longitude">
+    <button onclick="reverseGeocodeAndDisplayMap()">Reverse Geocode & Display Map</button>
+    -->
+    <div id="map"></div>
+    <p id="result"></p>
+
+    <button id="terminate-room">delete room</button>
+
+    <p>Latitude: <span id="latitude"></span></p>
+    <p>Longitude: <span id="longitude"></span></p>
+    <button onclick="getCurrentLocation()">Get Location</button>
+
+    <p id="message">safe</p>
+
+    <button onclick="getLocation()">render Map</button>
+
+    <div id="coords-log"></div>
+
+    <script src="https://unpkg.com/leaflet@1.7.1/dist/leaflet.js"></script>
+    <script>
+        var counter = 0;
+        let CoordsLog = [];
+
+        const map = L.map('map').setView([0, 0], 13);
+
+        L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png', {
+            maxZoom: 19,
+            attribution: '© <a href="https://www.openstreetmap.org/copyright">OpenStreetMap</a> contributors'
+        }).addTo(map);
+
+        function reverseGeocodeAndDisplayMap(latitudeInput, longitudeInput) {
+            let latitude = latitudeInput;
+            let longitude = longitudeInput;
+            if (latitude == undefined || longitude == undefined || latitude == null || longitude == null) {
+                latitude = document.getElementById("latitudeInput").value;
+                longitude = document.getElementById("longitudeInput").value;
+            }
+
+            // Make a request to the Nominatim API for reverse geocoding
+            fetch('https://nominatim.openstreetmap.org/reverse?format=json&lat=' + latitude + '&lon=' + longitude)
+                .then(function (response) {
+                    return response.json();
+                })
+                .then(function (data) {
+                    if (data.display_name) {
+                        var address = data.display_name;
+                        document.getElementById("result").textContent = "Address: " + address;
+                    } else {
+                        document.getElementById("result").textContent = "Location not found";
+                    }
+                });
+
+            // Update the map's center to the specified coordinates
+            map.setView([latitude, longitude], 19);
+
+            // Add a marker to the map at the specified coordinates
+            const marker = L.marker([latitude, longitude]).addTo(map);
+        }
+        const mes = document.getElementById("message");
+
+        function getCurrentLocation() {
+            mes.innerHTML = "fetching...";
+            if ("geolocation" in navigator) {
+                navigator.geolocation.getCurrentPosition(
+                    function (position) {
+                        const latitude = position.coords.latitude;
+                        const longitude = position.coords.longitude;
+
+                        const CoordsLen = CoordsLog.length;
+                        let isStalled = false;
+                        let distanceCovered;
+                        if(CoordsLen >= 36) {
+                            distanceCovered = haversine(latitude, longitude, CoordsLog[CoordsLen - 36].lat, CoordsLog[CoordsLen - 36].long);
+                            if(distanceCovered < 10) {
+                                isStalled = true;    
+                            }
+                        }
+
+                        // test
+                        if(CoordsLen >= 6) {
+                            distanceCovered = haversine(latitude, longitude, CoordsLog[CoordsLen - 6].lat, CoordsLog[CoordsLen - 6].long);
+                            if(distanceCovered < 10) {
+                                isStalled = true;    
+                            }
+                        }
+
+                        sendTick(latitude, longitude, isStalled);
+                        reverseGeocodeAndDisplayMap(latitude, longitude);
+                        document.getElementById("latitude").textContent = latitude;
+                        document.getElementById("longitude").textContent = longitude;
+                        mes.innerHTML = "safe";
+                        CoordsLog.push({ lat: latitude, long: longitude });
+                        
+                        //console.log({ lat: latitude, long: longitude }, counter++);
+                    },
+                    function (error) {
+                        // Handle any errors here
+                        console.error("Error getting location:", error);
+                        mes.innerHTML = "error";
+                    },
+                    { enableHighAccuracy: true } // Request high accuracy
+                );
+            } else {
+                alert("Geolocation is not available in your browser.");
+                mes.innerHTML = "error cannot use in browser";
+            }
+            setTimeout(() => {
+                getCurrentLocation();
+                renderLog();
+            }, 5000);
+        }
+
+        function sendTick(latitude, longitude, isStalled) {
+            fetch('/tick', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: JSON.stringify({ x: latitude, y: longitude, isStalled , location: "" })
+            })
+                .then((res) => { 
+                    console.log(res);
+                    return res.json();
+                })
+                .then(data => {
+                    console.log(data);
+                })
+                .catch(err => console.log(err))
+                .finally(() => {
+                    console.log('error get coords')
+                })
+        }
+
+        function renderLog() {
+            const logHtml = CoordsLog.map(coords => `<div>latitude: ${coords.lat}</div><div>longitude: ${coords.long}</div>`).join('');
+            document.getElementById("coords-log").innerHTML = logHtml;
+        }
+
+        const deleteRoomButton = document.getElementById('terminate-room');
+
+        async function terminateRoom() {
+            await fetch('/terminateroom', {
+                method: 'POST',
+                credentials: 'include',
+                headers: {
+                    'Content-Type': 'application/json'
+                },
+                body: "{}"
+            })
+                .then((res) => {
+                    console.log(res);
+                    return res.text();
+                })
+                .then(data => console.log(data))
+                .catch(err => console.log(err))
+        }
+
+        deleteRoomButton.addEventListener('click', terminateRoom);
+        getCurrentLocation();
+
+        function haversine(lat1, lon1, lat2, lon2) {
+            // Radius of the Earth in kilometers
+            const R = 6371.0;
+
+            // Convert latitude and longitude from degrees to radians
+            const lat1Rad = toRadians(lat1);
+            const lon1Rad = toRadians(lon1);
+            const lat2Rad = toRadians(lat2);
+            const lon2Rad = toRadians(lon2);
+
+            // Calculate differences in coordinates
+            const dlat = lat2Rad - lat1Rad;
+            const dlon = lon2Rad - lon1Rad;
+
+            // Haversine formula
+            const a = Math.sin(dlat / 2) ** 2 + Math.cos(lat1Rad) * Math.cos(lat2Rad) * Math.sin(dlon / 2) ** 2;
+            const c = 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1 - a));
+
+            // Calculate distance
+            const distance = R * c * 1000;
+
+            return distance;
+        }
+
+        function toRadians(degrees) {
+            return degrees * (Math.PI / 180);
+        }
+    </script>
+
+</body>
+
+</html>
